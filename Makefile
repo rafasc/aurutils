@@ -5,7 +5,7 @@ BINDIR ?= $(PREFIX)/bin
 LIBDIR ?= $(PREFIX)/lib
 AUR_LIB_DIR ?= $(LIBDIR)/$(PROGNM)
 
-.PHONY: shellcheck install build completion aur
+.PHONY: shellcheck install build completion aur test
 
 build: aur completion
 
@@ -14,6 +14,12 @@ aur: aur.in
 
 completion:
 	@$(MAKE) -C completions bash zsh
+
+test: BINDIR := /usr/bin
+test: DESTDIR := $(CURDIR)/test/aurutils
+test: AUR_LIB_DIR := $(DESTDIR)$(AUR_LIB_DIR)
+test: aur install
+	$(MAKE) -s -C test
 
 shellcheck: aur
 	@shellcheck -x -f gcc -e 2094,2035,2086,2016,1071 aur lib/*

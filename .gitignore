@@ -1,0 +1,4 @@
+aur
+completions/bash/aur
+completions/zsh/_aur
+test/aurutils/
