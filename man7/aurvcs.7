@@ -1,0 +1,162 @@
+.TH AURVCS 7 2019-10-13 AURUTILS
+
+.SH NAME
+aurvcs \- manage development packages
+
+.SH DESCRIPTION
+There's two main ideas on how to deal with vcs pacakges. One consists in
+building vcs-pacakges into a dedicated repository, while the other is
+based on pattern-matching common vcs pkgnames.
+
+Using a dedicated repo has some advanges especially when it comes to
+decide what is and what isn't considered a vcs pacakge.
+.IP \(bu 4
+Create a vcs repo and build some vcs packages into it. See
+.BR aur (1).
+E.g.:
+.EX
+    $ aur sync \-d vcs aurutils-git .\|.\|.
+.EE
+.
+.IP \(bu
+Leverage
+.BR aur\-repo (1)
+to list them all rebuild them.
+E.g.:
+.EX
+    $ aur repo \-\-list \-d vcs | cut \-f1 | aur sync \-d vcs \-\-rebuild
+.EE
+.P
+The downside of this approach is that non-vcs packages pulled as
+dependecies will also be built into the vcs repo.
+.P
+On the other hand, a pattern-based might give some false-positives:
+.EX
+    $ aur repo \-\-list \-d custom \e
+          | grep \-E $\(aq\(ha.*\-(cvs|svn|git|hg|bzr|darcs)\et\(aq
+.EE
+E.g.,
+.I git\-remote\-hg
+is a stable package. Its vcs counterpart is
+.IR git\-remote\-hg\-git .
+
+.SH CHECK FOR UPDATES BY RUNNING PKGVER()
+
+Take the results from the previous section
+and look in the
+.BR aur\-sync (1)'s
+cache
+.RB ( "find $AURDEST" )
+for matching directories.
+.P
+Any existing
+.BR PKGBUILD (5)
+files in these directories are executed, with upstream sources updated
+to their latest revision.
+.RB ( aur\-srcver (1)
+using
+.BR "makepkg \-o" ).
+.P
+Then, the resulting package versions
+.RI ( "$tmp/new" )
+are compared against the local repository
+.RI ( "$tmp/db" ).
+If the package version is newer, it is printed to stdout.
+
+.RS
+.EX
+aur\-vercmp\-devel
+1  #!/bin/bash
+2  readonly XDG_CACHE_HOME=${XDG_CACHE_HOME:\-$HOME/.cache}
+3
+4  tmp=$(mktemp \-d)
+5  trap \(aqrm \-rf "$tmp"\(aq EXIT
+6
+7  if cd "${AURDEST:\-$XDG_CACHE_HOME/aurutils/sync}"; then
+8     aur repo \-\-list \-d vcs "$@" \e
+9         | tee "$tmp"/db \e
+10        | cut \-f1 \e
+11        | xargs \-r aur srcver >"$tmp"/new || exit
+12
+13    if [[ \-s $tmp/new ]]; then
+14       aur vercmp \-p "$tmp"/new < "$tmp"/db
+15    fi
+16 fi
+.EE
+.RE
+
+.IP
+.IR Note :
+If you prefer using this with a pattern-based approach, replace line 8 with:
+.RS
+.EX
+      aur repo \-\-list \-d custom "$@" \e
+          | grep \-E $\(aq\(ha.*\-(cvs|svn|git|hg|bzr|darcs)\et\(aq \e
+          ...
+.EE
+.RE
+
+This may be combined with
+.BR aur\-sync (1)
+as follows:
+
+.RS
+.EX
+$ mapfile \-t packages < <(aur vercmp\-devel | cut \-d: \-f1)
+$ aur sync \-d vcs "${packages[@]}" \-\-no\-ver\-shallow
+.EE
+.RE
+
+.\" Alternatively, check for [[ -t1 ]] so the output can be piped directly into
+.\" aursync, but visible when ran as standalone
+
+Version-control packages typically have
+.B pkgver
+set to the upstream revision at the time of package submission, making
+the AUR-advertised version older than the latest version.
+Here, the
+.B \-\-no\-ver\-shallow
+option ignores the AUR information
+.I only
+for packages from standard input.
+
+Further arguments can be appended to
+.BR aur\-sync (1),
+such as
+.BR \-\-upgrades .
+
+.SS "Populating the cache:"
+As described, the above relies on already available
+.BR PKGBUILD (5)
+files. If the
+.BR aur\-sync (1)
+cache is sparse or the package has meanwhile been updated by the AUR
+maintainer (for example, to indicate a new upstream source),
+information reported by
+.B aur\-vercmp\-devel
+may be incomplete.
+
+The following mediates this by downloading all VCS packages in a local
+repository anew, with all build files and their diffs offered for
+inspection.
+
+.RS
+.EX
+$ mapfile \-t packages < <(aur repo \-\-list \-d vcs | cut \-f1)
+$ aur sync "${packages[@]}" \-\-no\-ver \-\-print
+.EE
+.RE
+
+.SH SEE ALSO
+.BR aur\-repo (1),
+.BR aur\-srcver (1),
+.BR aur\-sync (1),
+.BR aur\-out\-of\-date (?).
+
+.SH AUTHORS
+.MT https://github.com/AladW
+Alad Wenter
+.ME
+
+
+.\" vim: set textwidth=72:
