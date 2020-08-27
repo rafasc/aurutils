@@ -8,7 +8,7 @@ default_opts() {
     local cmd corecommands=() opts=()
 
     for cmd in "${have_optdump[@]}"; do
-        mapfile -t opts < <(bash "../lib/aur-${cmd}" --dump-options | LC_ALL=C sort)
+        mapfile -t opts < <(AUR_ASROOT=1 bash "../lib/aur-${cmd}" --dump-options | LC_ALL=C sort)
         corecommands+=("default_cmds[${cmd}]='${opts[*]}'")
     done
 
